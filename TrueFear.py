@@ -3,7 +3,7 @@ import sys
 import os
 import ctypes
 import traceback
-
+import math
 def is_admin():
     """
     Check if the script is running with administrative privileges.
@@ -50,8 +50,9 @@ greyish = (170, 170, 170)
 light_blue = (0, 200, 250)
 darker_red = (150, 0, 0)
 red = (200, 0, 0)
-file_names = []
-
+file_names = ["currency"]
+center = [0.0, 0.0]
+speed = 500
 def save(file):
     x = globals()[file]
     with open((file) + ".txt", "w") as file:
@@ -64,7 +65,6 @@ def wipe_files():
             with open((file) + ".txt", "w") as file:
                 file.write(str(0))
         else:
-            num = 0
             with open((file) + ".txt", "w") as file:
                 values = []
                 for i in range(3):
@@ -73,25 +73,12 @@ def wipe_files():
                     file.write(f"{str(line)}\n")
 
 def load_files():
-    global currency, level, era, upgrade_1, upgrade_2, orbs
-    orbs = []
-    Loaded = True
+    global currency
+    Loaded = False
     while Loaded == False:
         try:
             with open("currency.txt", "r") as file:
                 currency = int(file.read())
-            with open("level.txt", "r") as file:
-                level = int(file.read())
-            with open("era.txt", "r") as file:
-                era = int(file.read())
-            with open("upgrade_1.txt", "r") as file:
-                upgrade_1 = int(file.read())
-            with open("upgrade_2.txt", "r") as file:
-                upgrade_2 = int(file.read())
-            with open("orbs.txt", "r") as file:
-                pre_orbs = (file.readlines())
-                for line in pre_orbs:
-                    orbs.append(int(line))
             Loaded = True
         except:
             wipe_files()
@@ -104,26 +91,138 @@ def pytext(text, x, y, font_size, color1, color2):
     screen.blit(text, textRect)
 
 def main():
+    global direction_list, angle
+    direction_list = []
     pygame.display.set_caption(f"Fear")
     load_files()
+    angle = 0
     running = True
     while running:
-        screen.fill(background_color)
+        # Handle OS / pygame events so the window stays responsive
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    running = False
-        menu_rect = [
-                {"rect": pygame.Rect(300, 100, 200, 100), "color": darker_green, "action": "rect1_clicked"},
-                {"rect": pygame.Rect(1000, 100, 200, 100), "color": darker_red, "action": "rect2_clicked"},
-                {"rect": pygame.Rect(520, 100, 200, 100), "color": red, "action": "rect3_clicked"}
-            ]
-        for item in menu_rect:
-            pygame.draw.rect(screen, item["color"], item["rect"])
-        pygame.display.flip()
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                running = False
+
+        get_input()
+        #print(input_list)
+        angle = process_direction()
+        movement()
+        playerr = playerv(angle)
+        walls = process_objects()
+        visuals(playerr, walls)
         clock.tick(60)
+    pygame.quit()
+    sys.exit()
 
+def movement():
+    global angle, center
+    dt = clock.tick(60) / 1000.0
+    move = False
+    for item in direction_list:
+        if item == 'space':
+            move = True
+    if move:
+        rad = math.radians(angle)
+        dx = -math.sin(rad)
+        dy = -math.cos(rad)
+        center[0] += dx * speed * dt
+        center[1] += dy * speed * dt
+    
 
+def process_objects():
+    relative_posx = screen_width // 2 - center[0]
+    relative_posy = screen_height // 2 - center[1]
+    walls = [
+        {"rect": pygame.Rect(relative_posx, relative_posy, 50, 200), "color": darker_green, "type": "wall", "true_posx": 1000,  "true_posy": 1000}
+        ]
+    return walls
+
+def get_input():
+    global direction_list, input_lis
+    # Use pygame's key state to avoid global hooks and keep window responsive
+    keys = pygame.key.get_pressed()
+    desired = []
+    if keys[pygame.K_a]:
+        desired.append('a')
+    if keys[pygame.K_d]:
+        desired.append('d')
+    if keys[pygame.K_s]:
+        desired.append('s')
+    if keys[pygame.K_w]:
+        desired.append('w')
+
+    if keys[pygame.K_SPACE]:
+        desired.append('space')
+    # Sync direction_list to desired state
+    # Remove keys not currently pressed
+    for item in list(direction_list):
+        if item not in desired:
+            direction_list.remove(item)
+    # Add newly pressed keys in order
+    for item in desired:
+        if item not in direction_list:
+            direction_list.append(item)
+
+def process_direction():
+    global angle
+    up = False
+    down = False
+    left = False
+    right = False
+    for item in direction_list:
+        if item == 'a':
+            right = False
+            left = True
+        if item == 'd':
+            right = True
+            left = False
+        if item == 's':
+            down = True
+            up = False
+        if item == 'w':
+            down = False
+            up = True
+    if up and right:
+        return 315
+    if up and left:
+        return 45
+    if down and right:
+        return 225
+    if down and left:
+        return 135
+    if up:
+        return 0
+    if down:
+        return 180
+    if right:
+        return 270
+    if left:
+        return 90
+    return angle
+
+def playerv(angle):
+    center_pos = (screen_width // 2, screen_height // 2)
+    rect_size = (75, 100)
+    rect_color = (0, 200, 250)
+    rect_surface = pygame.Surface(rect_size, pygame.SRCALPHA)
+    rect_surface.fill(rect_color)
+    indicator_size = (40, 20)
+    indicator_color = (200, 50, 50)
+    ind_w, ind_h = indicator_size
+    rect_w, rect_h = rect_size
+    pygame.draw.rect(rect_surface, indicator_color, (rect_w // 2 - ind_w // 2, 0, ind_w, ind_h))
+    # Optional: draw a thin center line to emphasize forward direction
+    pygame.draw.line(rect_surface, (255, 255, 255), (rect_w // 2, rect_h // 2), (rect_w // 2, 0), 2)
+    rotated_surface = pygame.transform.rotate(rect_surface, angle)
+    rotated_rect = rotated_surface.get_rect(center=center_pos)
+    return (rotated_surface, rotated_rect)
+
+def visuals(player, walls):
+    screen.fill(background_color)
+    screen.blit(player[0], player[1])
+    for item in walls:
+        pygame.draw.rect(screen, item["color"], item["rect"])
+    pygame.display.flip()
 main()
