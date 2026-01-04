@@ -135,7 +135,7 @@ def process_objects():
     relative_posx = screen_width // 2 - center[0]
     relative_posy = screen_height // 2 - center[1]
     walls = [
-        {"rect": pygame.Rect(relative_posx, relative_posy, 50, 200), "color": darker_green, "type": "wall", "true_posx": 1000,  "true_posy": 1000}
+        {"rect": pygame.Rect(relative_posx+1000, relative_posy+1000, 50, 200), "color": darker_green, "type": "wall", "true_posx": 200,  "true_posy": 200}
         ]
     return walls
 
