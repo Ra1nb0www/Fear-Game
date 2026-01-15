@@ -112,15 +112,15 @@ def main():
         get_input()
         #print(input_list)
         angle = process_direction()
-        movement()
         playerr = playerv(angle)
+        movement(playerr[1])
         process_objects(playerr[1])  # Pass player's bounding rect for collision
         visuals(playerr)
         # `movement()` advances the clock/timing; avoid double tick here.
     pygame.quit()
     sys.exit()
 
-def movement():
+def movement(player_rect=None):
     global angle, center, old_x, old_y
     dt = clock.tick(60) / 1000.0
     forward = False
@@ -132,24 +132,32 @@ def movement():
         if item == 'shift':
             forward = False
             backward = True
-    if forward:
-        old_x, old_y = center[0], center[1]
-        rad = math.radians(angle)
-        dx = -math.sin(rad)
-        dy = -math.cos(rad)
-        center[0] += dx * speed * dt
-        center[1] += dy * speed * dt
-    if backward:
-        old_x, old_y = center[0], center[1]
-        rad = math.radians(angle)
-        dx = -math.sin(rad)
-        dy = -math.cos(rad)
-        center[0] -= dx * speed * dt
-        center[1] -= dy * speed * dt
+    if not (forward or backward):
+        return
+    old_x, old_y = center[0], center[1]
+    rad = math.radians(angle)
+    dx = -math.sin(rad)
+    dy = -math.cos(rad)
+    multiplier = 1 if forward else -1
+    move_x = dx * speed * dt * multiplier
+    move_y = dy * speed * dt * multiplier
+    # move X and resolve collisions on X
+    center[0] += move_x
+    try:
+        process_objects(player_rect, axis='x')
+    except TypeError:
+        # older signature fallback
+        process_objects(player_rect)
+    # move Y and resolve collisions on Y
+    center[1] += move_y
+    try:
+        process_objects(player_rect, axis='y')
+    except TypeError:
+        process_objects(player_rect)
 
     
 
-def process_objects(player_rect):
+def process_objects(player_rect, axis=None):
     global PCList, center, old_x, old_y, MAZE_WALLS, MAZE_DOORS
     relative_posx = screen_width // 2 - center[0]
     relative_posy = screen_height // 2 - center[1]
@@ -180,20 +188,28 @@ def process_objects(player_rect):
             if item.get("type") == "door":
                 continue
             if is_colliding(player_rect.x, player_rect.y, player_rect.width, player_rect.height, item["rect"].x, item["rect"].y, item["rect"].width, item["rect"].height):
-                # Try resolving collision by reverting only X or only Y (fix diagonal tunneling)
-                sx_if_x_revert = int(screen_width // 2 - old_x + item["true_posx"])
-                sy_if_x_revert = int(screen_height // 2 - center[1] + item["true_posy"])
-                coll_if_x = is_colliding(player_rect.x, player_rect.y, player_rect.width, player_rect.height, sx_if_x_revert, sy_if_x_revert, item["rect"].width, item["rect"].height)
-                sx_if_y_revert = int(screen_width // 2 - center[0] + item["true_posx"])
-                sy_if_y_revert = int(screen_height // 2 - old_y + item["true_posy"])
-                coll_if_y = is_colliding(player_rect.x, player_rect.y, player_rect.width, player_rect.height, sx_if_y_revert, sy_if_y_revert, item["rect"].width, item["rect"].height)
-                if not coll_if_x:
+                # resolve based on axis when provided (prevents diagonal tunneling)
+                if axis == 'x':
                     center[0] = old_x
-                elif not coll_if_y:
+                    return
+                elif axis == 'y':
                     center[1] = old_y
+                    return
                 else:
-                    center[0], center[1] = old_x, old_y
-                return
+                    # fallback: try reverting X first, then Y, then both
+                    sx_if_x_revert = int(screen_width // 2 - old_x + item["true_posx"])
+                    sy_if_x_revert = int(screen_height // 2 - center[1] + item["true_posy"])
+                    coll_if_x = is_colliding(player_rect.x, player_rect.y, player_rect.width, player_rect.height, sx_if_x_revert, sy_if_x_revert, item["rect"].width, item["rect"].height)
+                    sx_if_y_revert = int(screen_width // 2 - center[0] + item["true_posx"])
+                    sy_if_y_revert = int(screen_height // 2 - old_y + item["true_posy"])
+                    coll_if_y = is_colliding(player_rect.x, player_rect.y, player_rect.width, player_rect.height, sx_if_y_revert, sy_if_y_revert, item["rect"].width, item["rect"].height)
+                    if not coll_if_x:
+                        center[0] = old_x
+                    elif not coll_if_y:
+                        center[1] = old_y
+                    else:
+                        center[0], center[1] = old_x, old_y
+                    return
     
 
 
